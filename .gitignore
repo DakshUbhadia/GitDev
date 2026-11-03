@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.env*
+!.env.example
+data/
+*.db
+*.db-shm
+*.db-wal
+npm-debug.log*
