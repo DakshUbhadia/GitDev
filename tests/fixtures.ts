@@ -72,6 +72,11 @@ export function makePortfolio(): Portfolio {
       { name: "TypeScript", count: 2, percentage: 67, color: "#3178c6" },
       { name: "Python", count: 1, percentage: 33, color: "#3572a5" },
     ],
+    insight: {
+      strongestLanguage: "TypeScript",
+      mostStarredRepository: { name: "typed-dashboard", stars: 5 },
+      summary: "Strongest portfolio language: TypeScript. Most-starred project: typed-dashboard with 5 stars.",
+    },
     fetchedAt: snapshot.fetchedAt,
     stale: false,
     source: "graphql",

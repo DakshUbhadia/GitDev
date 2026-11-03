@@ -73,6 +73,8 @@ describe("API routes", () => {
     assert.equal(body.totalStars, 9);
     assert.equal(body.repositories.length, 3);
     assert.equal(body.topLanguages[0].name, "TypeScript");
+    assert.equal(body.insight.strongestLanguage, "TypeScript");
+    assert.equal(body.insight.mostStarredRepository.name, "typed-dashboard");
   });
 
   it("GET /api/profile rejects an invalid username", async () => {
@@ -92,7 +94,9 @@ describe("API routes", () => {
     assert.equal(response.status, 200);
     assert.equal(body.percentage, 50);
     assert.deepEqual(body.matchedLanguages, ["TypeScript"]);
+    assert.deepEqual(body.unmatchedPortfolioLanguages, ["Python"]);
     assert.equal(body.formula, "1 matched / 2 portfolio languages");
+    assert.equal(body.explanation, "1 of your 2 portfolio languages appear in this job description: TypeScript.");
   });
 
   it("POST /api/match validates input before accessing GitHub", async () => {

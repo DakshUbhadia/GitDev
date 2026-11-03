@@ -30,6 +30,12 @@ export type LanguageStat = {
   color: string;
 };
 
+export type PortfolioInsight = {
+  strongestLanguage: string | null;
+  mostStarredRepository: { name: string; stars: number } | null;
+  summary: string;
+};
+
 export type Portfolio = {
   profile: GithubProfile;
   repositories: Repository[];
@@ -37,6 +43,7 @@ export type Portfolio = {
   totalStars: number;
   currentStreak: number;
   topLanguages: LanguageStat[];
+  insight: PortfolioInsight;
   fetchedAt: string;
   stale: boolean;
   source: "graphql" | "rest";
@@ -46,5 +53,7 @@ export type MatchResult = {
   percentage: number;
   matchedLanguages: string[];
   portfolioLanguages: string[];
+  unmatchedPortfolioLanguages: string[];
   formula: string;
+  explanation: string;
 };

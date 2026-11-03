@@ -1,6 +1,6 @@
 import { getSetting, readSnapshot, setSetting, writeSnapshot, type CachedSnapshot } from "@/lib/database";
 import { fetchGithubSnapshot } from "@/lib/github";
-import { buildLanguageStats, calculateStreak, validateUsername } from "@/lib/logic";
+import { buildLanguageStats, buildPortfolioInsight, calculateStreak, validateUsername } from "@/lib/logic";
 import type { Portfolio } from "@/lib/types";
 
 const DEFAULT_TTL_MINUTES = 20;
@@ -19,6 +19,7 @@ function aggregate(snapshot: CachedSnapshot, stale = false): Portfolio {
     totalStars: snapshot.repositories.reduce((sum, repository) => sum + repository.stars, 0),
     currentStreak: calculateStreak(snapshot.contributions),
     topLanguages: buildLanguageStats(snapshot.repositories),
+    insight: buildPortfolioInsight(snapshot.repositories),
     fetchedAt: snapshot.fetchedAt,
     stale,
     source: snapshot.source,

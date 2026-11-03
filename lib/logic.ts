@@ -1,4 +1,4 @@
-import type { ContributionDay, LanguageStat, MatchResult, Repository } from "@/lib/types";
+import type { ContributionDay, LanguageStat, MatchResult, PortfolioInsight, Repository } from "@/lib/types";
 
 const LANGUAGE_COLORS: Record<string, string> = {
   TypeScript: "#3178c6", JavaScript: "#e3b341", Python: "#3572a5", Java: "#b07219",
@@ -64,6 +64,30 @@ export function buildLanguageStats(repositories: Repository[]): LanguageStat[] {
   }));
 }
 
+export function buildPortfolioInsight(repositories: Repository[]): PortfolioInsight {
+  if (!repositories.length) {
+    return {
+      strongestLanguage: null,
+      mostStarredRepository: null,
+      summary: "No public repository data is available yet to generate a portfolio insight.",
+    };
+  }
+
+  const strongestLanguage = buildLanguageStats(repositories)[0]?.name ?? null;
+  const mostStarred = [...repositories].sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))[0];
+  const mostStarredRepository = { name: mostStarred.name, stars: mostStarred.stars };
+  const starLabel = mostStarred.stars === 1 ? "star" : "stars";
+  const languageSentence = strongestLanguage
+    ? `Strongest portfolio language: ${strongestLanguage}.`
+    : "No primary repository language was detected.";
+
+  return {
+    strongestLanguage,
+    mostStarredRepository,
+    summary: `${languageSentence} Most-starred project: ${mostStarred.name} with ${mostStarred.stars} ${starLabel}.`,
+  };
+}
+
 function containsTerm(text: string, term: string): boolean {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
@@ -79,12 +103,20 @@ export function calculateMatch(jobDescription: unknown, repositories: Repository
     const aliases = LANGUAGE_ALIASES[language] ?? [language.toLowerCase()];
     return aliases.some((alias) => containsTerm(description, alias));
   });
+  const unmatchedPortfolioLanguages = portfolioLanguages.filter((language) => !matchedLanguages.includes(language));
   const raw = portfolioLanguages.length ? (matchedLanguages.length / portfolioLanguages.length) * 100 : 0;
+  const explanation = portfolioLanguages.length === 0
+    ? "No portfolio languages are available to compare with this job description."
+    : matchedLanguages.length === 0
+      ? `None of your ${portfolioLanguages.length} portfolio languages appear in this job description.`
+      : `${matchedLanguages.length} of your ${portfolioLanguages.length} portfolio languages appear in this job description: ${matchedLanguages.join(", ")}.`;
   return {
     percentage: Math.max(0, Math.min(100, Math.round(raw))),
     matchedLanguages,
     portfolioLanguages,
+    unmatchedPortfolioLanguages,
     formula: `${matchedLanguages.length} matched / ${portfolioLanguages.length} portfolio languages`,
+    explanation,
   };
 }
 

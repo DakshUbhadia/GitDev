@@ -4,9 +4,24 @@ import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 import { ArrowIcon, ForkIcon, RefreshIcon, StarIcon } from "@/components/icons";
 import { formatCacheTime } from "@/lib/logic";
-import type { MatchResult, Portfolio } from "@/lib/types";
+import type { MatchResult, Portfolio, Repository } from "@/lib/types";
 
 type Props = { initialPortfolio: Portfolio | null; initialUsername: string; initialError: string; currentYear: number };
+
+export const REPOSITORIES_PER_PAGE = 6;
+
+export function getRepositoryPage(repositories: Repository[], requestedPage: number) {
+  const sortedRepositories = [...repositories].sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
+  const totalPages = Math.max(1, Math.ceil(sortedRepositories.length / REPOSITORIES_PER_PAGE));
+  const currentPage = Math.min(Math.max(1, Math.trunc(requestedPage) || 1), totalPages);
+  const startIndex = (currentPage - 1) * REPOSITORIES_PER_PAGE;
+  return {
+    repositories: sortedRepositories.slice(startIndex, startIndex + REPOSITORIES_PER_PAGE),
+    currentPage,
+    totalPages,
+    startIndex,
+  };
+}
 
 function number(value: number) {
   return new Intl.NumberFormat("en", { notation: value > 999 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value);
@@ -62,7 +77,11 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
   const [jobDescription, setJobDescription] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
   const [matching, setMatching] = useState(false);
-  const sortedRepositories = useMemo(() => [...(portfolio?.repositories ?? [])].sort((a, b) => b.stars - a.stars).slice(0, 9), [portfolio]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const repositoryPage = useMemo(
+    () => getRepositoryPage(portfolio?.repositories ?? [], currentPage),
+    [portfolio, currentPage],
+  );
 
   async function loadPortfolio(requested: string, refresh = false) {
     setLoading(true); setError(""); setMatch(null);
@@ -72,7 +91,7 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
       const response = await fetch(`/api/profile?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Unable to load profile.");
-      setPortfolio(data); setUsername(data.profile.username); setUsernameInput(data.profile.username);
+      setPortfolio(data); setUsername(data.profile.username); setUsernameInput(data.profile.username); setCurrentPage(1);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load profile.");
     } finally { setLoading(false); }
@@ -127,18 +146,29 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
             <LanguageChart portfolio={portfolio} />
           </section>
           <ContributionGraph portfolio={portfolio} />
+          <section className="portfolio-insight" aria-labelledby="portfolio-insight-title">
+            <div><p className="eyebrow">Extra feature 01</p><h2 id="portfolio-insight-title">Portfolio Insight</h2></div>
+            <p>{portfolio.insight.summary}</p>
+          </section>
           <section className="content-grid">
             <div className="repository-section">
               <div className="section-heading repo-heading"><div><p className="eyebrow">Selected work</p><h2>Repository index</h2></div><span>{portfolio.repositories.length} public originals</span></div>
               <div className="repository-grid">
-                {sortedRepositories.map((repository, index) => (
+                {repositoryPage.repositories.map((repository, index) => (
                   <a className="repo-card" href={repository.url} target="_blank" rel="noreferrer" key={repository.githubId}>
-                    <div className="repo-number">{String(index + 1).padStart(2, "0")}</div><h3>{repository.name}</h3><p>{repository.description}</p>
+                    <div className="repo-number">{String(repositoryPage.startIndex + index + 1).padStart(2, "0")}</div><h3>{repository.name}</h3><p>{repository.description}</p>
                     <div className="repo-meta"><span className="repo-language"><i />{repository.primaryLanguage ?? "Unspecified"}</span><span><StarIcon />{number(repository.stars)}</span><span><ForkIcon />{number(repository.forks)}</span></div>
                     <ArrowIcon className="repo-arrow" size={22} />
                   </a>
                 ))}
               </div>
+              {repositoryPage.totalPages > 1 && (
+                <nav className="repo-pagination" aria-label="Repository pages">
+                  <button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={repositoryPage.currentPage === 1}>Previous</button>
+                  <span>Page {repositoryPage.currentPage} of {repositoryPage.totalPages}</span>
+                  <button type="button" onClick={() => setCurrentPage((page) => Math.min(repositoryPage.totalPages, page + 1))} disabled={repositoryPage.currentPage === repositoryPage.totalPages}>Next</button>
+                </nav>
+              )}
             </div>
             <aside className="match-panel" id="vibe-check">
               <p className="eyebrow">Tech stack compatibility</p><h2>Vibe check</h2><p>Paste a job description. The server compares its terms with languages found in cached repositories.</p>
@@ -147,7 +177,7 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
                 <textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} placeholder="We’re looking for an engineer fluent in TypeScript, React, Python…" maxLength={10000} rows={9} required />
                 <div className="form-footer"><span>{jobDescription.length.toLocaleString()} / 10,000</span><button disabled={matching}>{matching ? "Comparing…" : "Calculate match"}<ArrowIcon /></button></div>
               </form>
-              {match && <div className="match-result" aria-live="polite"><div><span>Match percentage</span><strong>{match.percentage}%</strong></div><div className="match-track"><i style={{ width: `${match.percentage}%` }} /></div><p>{match.formula}</p><div className="match-tags">{match.matchedLanguages.length ? match.matchedLanguages.map((item) => <span key={item}>{item}</span>) : <small>No language matches found.</small>}</div></div>}
+              {match && <div className="match-result" aria-live="polite"><div><span>Match percentage</span><strong>{match.percentage}%</strong></div><div className="match-track"><i style={{ width: `${match.percentage}%` }} /></div><p>{match.formula}</p><div className="match-explanation"><strong>Match Explanation</strong><span>{match.explanation}</span></div><div className="match-tags">{match.matchedLanguages.length ? match.matchedLanguages.map((item) => <span key={item}>{item}</span>) : <small>No language matches found.</small>}</div>{match.unmatchedPortfolioLanguages.length > 0 && <div className="unmatched-languages"><small>Portfolio languages not mentioned in this JD</small><span>{match.unmatchedPortfolioLanguages.join(", ")}</span></div>}</div>}
               <small className="formula-note">Formula: matched unique portfolio languages ÷ all unique portfolio languages × 100.</small>
             </aside>
           </section>
