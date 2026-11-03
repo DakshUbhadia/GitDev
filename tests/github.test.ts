@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { fetchGithubSnapshot } from "../lib/github";
+import { fetchGithubSnapshot, GitHubApiError } from "../lib/github";
 
 const originalFetch = globalThis.fetch;
 const originalToken = process.env.GITHUB_TOKEN;
@@ -17,6 +17,7 @@ describe("GitHub client", () => {
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), "https://api.github.com/graphql");
       assert.equal(init?.method, "POST");
+      assert.ok(init?.signal instanceof AbortSignal);
       assert.equal(new Headers(init?.headers).get("authorization"), "Bearer test-token");
       const body = JSON.parse(String(init?.body));
       assert.equal(body.variables.login, "testdev");
@@ -92,6 +93,22 @@ describe("GitHub client", () => {
   it("surfaces GraphQL errors instead of caching malformed data", async () => {
     process.env.GITHUB_TOKEN = "bad-token";
     globalThis.fetch = async () => Response.json({ errors: [{ message: "Bad credentials" }] }, { status: 401 });
-    await assert.rejects(fetchGithubSnapshot("testdev"), /Bad credentials/);
+    await assert.rejects(fetchGithubSnapshot("testdev"), (error) => {
+      assert.ok(error instanceof GitHubApiError);
+      assert.equal(error.status, 502);
+      assert.match(error.message, /Bad credentials/);
+      return true;
+    });
+  });
+
+  it("converts timeouts into a safe upstream error", async () => {
+    process.env.GITHUB_TOKEN = "test-token";
+    globalThis.fetch = async () => { throw new DOMException("Timed out", "TimeoutError"); };
+    await assert.rejects(fetchGithubSnapshot("testdev"), (error) => {
+      assert.ok(error instanceof GitHubApiError);
+      assert.equal(error.status, 502);
+      assert.match(error.message, /too long/);
+      return true;
+    });
   });
 });

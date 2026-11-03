@@ -3,6 +3,14 @@ import type { ContributionDay, Repository } from "@/lib/types";
 
 const GRAPHQL_URL = "https://api.github.com/graphql";
 const REST_URL = "https://api.github.com";
+const GITHUB_TIMEOUT_MS = 10_000;
+
+export class GitHubApiError extends Error {
+  constructor(message: string, public readonly status: 404 | 502) {
+    super(message);
+    this.name = "GitHubApiError";
+  }
+}
 
 const query = `
   query Portfolio($login: String!, $from: DateTime!, $to: DateTime!) {
@@ -39,6 +47,10 @@ function headers(token?: string): HeadersInit {
   return { Accept: "application/vnd.github+json", "User-Agent": "devfolio-mvp", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
+function githubFetch(input: string, init: RequestInit = {}) {
+  return fetch(input, { ...init, signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS) });
+}
+
 function levelFromCount(count: number): ContributionDay["level"] {
   if (!count) return 0;
   if (count <= 2) return 1;
@@ -51,16 +63,22 @@ async function fetchGraphQL(username: string, token: string): Promise<CachedSnap
   const to = new Date();
   const from = new Date(to);
   from.setUTCDate(from.getUTCDate() - 364);
-  const response = await fetch(GRAPHQL_URL, {
+  const response = await githubFetch(GRAPHQL_URL, {
     method: "POST",
     headers: { ...headers(token), "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables: { login: username, from: from.toISOString(), to: to.toISOString() } }),
     cache: "no-store",
   });
   const result = (await response.json()) as GraphQLResponse;
-  if (!response.ok || result.errors?.length) throw new Error(result.errors?.[0]?.message ?? `GitHub GraphQL returned ${response.status}.`);
+  if (!response.ok || result.errors?.length) {
+    const upstreamMessage = result.errors?.[0]?.message ?? `GitHub GraphQL returned ${response.status}.`;
+    if (response.status === 404 || /could not resolve to a user|not found/i.test(upstreamMessage)) {
+      throw new GitHubApiError(`GitHub user "${username}" was not found.`, 404);
+    }
+    throw new GitHubApiError(upstreamMessage, 502);
+  }
   const user = result.data?.user;
-  if (!user) throw new Error(`GitHub user “${username}” was not found.`);
+  if (!user) throw new GitHubApiError(`GitHub user "${username}" was not found.`, 404);
 
   const repositories: Repository[] = user.repositories.nodes.filter((repository) => !repository.isFork).map((repository) => ({
     githubId: repository.id,
@@ -93,12 +111,14 @@ type RestRepo = {
 
 async function fetchRest(username: string): Promise<CachedSnapshot> {
   const [profileResponse, repositoriesResponse, eventsResponse] = await Promise.all([
-    fetch(`${REST_URL}/users/${encodeURIComponent(username)}`, { headers: headers(), cache: "no-store" }),
-    fetch(`${REST_URL}/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`, { headers: headers(), cache: "no-store" }),
-    fetch(`${REST_URL}/users/${encodeURIComponent(username)}/events/public?per_page=100`, { headers: headers(), cache: "no-store" }),
+    githubFetch(`${REST_URL}/users/${encodeURIComponent(username)}`, { headers: headers(), cache: "no-store" }),
+    githubFetch(`${REST_URL}/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`, { headers: headers(), cache: "no-store" }),
+    githubFetch(`${REST_URL}/users/${encodeURIComponent(username)}/events/public?per_page=100`, { headers: headers(), cache: "no-store" }),
   ]);
-  if (profileResponse.status === 404) throw new Error(`GitHub user “${username}” was not found.`);
-  if (!profileResponse.ok || !repositoriesResponse.ok) throw new Error("GitHub could not be reached. Add GITHUB_TOKEN for a higher rate limit.");
+  if (profileResponse.status === 404) throw new GitHubApiError(`GitHub user "${username}" was not found.`, 404);
+  if (!profileResponse.ok || !repositoriesResponse.ok) {
+    throw new GitHubApiError("GitHub could not be reached. Check the token or try again shortly.", 502);
+  }
   const profile = await profileResponse.json();
   const repos = (await repositoriesResponse.json()) as RestRepo[];
   const events = eventsResponse.ok ? (await eventsResponse.json()) as Array<{ type: string; created_at: string; payload?: { commits?: unknown[] } }> : [];
@@ -134,5 +154,13 @@ async function fetchRest(username: string): Promise<CachedSnapshot> {
 
 export async function fetchGithubSnapshot(username: string): Promise<CachedSnapshot> {
   const token = process.env.GITHUB_TOKEN?.trim();
-  return token ? fetchGraphQL(username, token) : fetchRest(username);
+  try {
+    return token ? await fetchGraphQL(username, token) : await fetchRest(username);
+  } catch (error) {
+    if (error instanceof GitHubApiError) throw error;
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      throw new GitHubApiError("GitHub took too long to respond. Try again shortly.", 502);
+    }
+    throw new GitHubApiError("GitHub could not be reached. Try again shortly.", 502);
+  }
 }

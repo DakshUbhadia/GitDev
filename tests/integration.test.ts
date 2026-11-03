@@ -7,9 +7,11 @@ import { NextRequest } from "next/server";
 import { makeSnapshot } from "./fixtures";
 
 const originalDatabasePath = process.env.DATABASE_PATH;
+const originalToken = process.env.GITHUB_TOKEN;
 const originalFetch = globalThis.fetch;
 const testDirectory = mkdtempSync(join(tmpdir(), "devfolio-tests-"));
 process.env.DATABASE_PATH = join(testDirectory, "cache.db");
+delete process.env.GITHUB_TOKEN;
 
 let database: typeof import("../lib/database");
 let portfolioService: typeof import("../lib/portfolio");
@@ -30,6 +32,8 @@ after(() => {
   rmSync(testDirectory, { recursive: true, force: true });
   if (originalDatabasePath === undefined) delete process.env.DATABASE_PATH;
   else process.env.DATABASE_PATH = originalDatabasePath;
+  if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+  else process.env.GITHUB_TOKEN = originalToken;
 });
 
 describe("SQLite cache and portfolio aggregation", () => {
@@ -109,5 +113,30 @@ describe("API routes", () => {
     const response = await matchRoute.POST(request);
     assert.equal(response.status, 400);
     assert.equal((await response.json()).error, "Job description is required.");
+  });
+
+  it("POST /api/match rejects malformed JSON", async () => {
+    const request = new NextRequest("http://localhost/api/match", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not-json",
+    });
+    const response = await matchRoute.POST(request);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "Request body must be valid JSON.");
+  });
+
+  it("maps a missing GitHub user to HTTP 404", async () => {
+    globalThis.fetch = async () => Response.json({ message: "Not Found" }, { status: 404 });
+    const response = await profileRoute.GET(new NextRequest("http://localhost/api/profile?username=missing-user"));
+    assert.equal(response.status, 404);
+    assert.match((await response.json()).error, /was not found/);
+  });
+
+  it("maps GitHub upstream failures to HTTP 502", async () => {
+    globalThis.fetch = async () => Response.json({ message: "Server Error" }, { status: 500 });
+    const response = await profileRoute.GET(new NextRequest("http://localhost/api/profile?username=upstream-failure"));
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).error, /GitHub could not be reached/);
   });
 });

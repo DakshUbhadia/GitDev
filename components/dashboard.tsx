@@ -115,9 +115,9 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
     <main>
       <nav className="topbar" aria-label="Portfolio controls">
         <a className="brand" href="#top" aria-label="Devfolio home"><span>DF</span> DEVFOLIO</a>
-        <form className="username-form" onSubmit={submitUsername}>
+        <form className="username-form" onSubmit={submitUsername} aria-busy={loading}>
           <label htmlFor="username">github.com/</label>
-          <input id="username" value={usernameInput} onChange={(event) => setUsernameInput(event.target.value)} maxLength={39} />
+          <input id="username" value={usernameInput} onChange={(event) => setUsernameInput(event.target.value)} maxLength={39} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required />
           <button type="submit" disabled={loading}>Load profile</button>
         </form>
       </nav>
@@ -165,17 +165,17 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
               {repositoryPage.totalPages > 1 && (
                 <nav className="repo-pagination" aria-label="Repository pages">
                   <button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={repositoryPage.currentPage === 1}>Previous</button>
-                  <span>Page {repositoryPage.currentPage} of {repositoryPage.totalPages}</span>
+                  <span aria-live="polite" aria-atomic="true">Page {repositoryPage.currentPage} of {repositoryPage.totalPages}</span>
                   <button type="button" onClick={() => setCurrentPage((page) => Math.min(repositoryPage.totalPages, page + 1))} disabled={repositoryPage.currentPage === repositoryPage.totalPages}>Next</button>
                 </nav>
               )}
             </div>
             <aside className="match-panel" id="vibe-check">
               <p className="eyebrow">Tech stack compatibility</p><h2>Vibe check</h2><p>Paste a job description. The server compares its terms with languages found in cached repositories.</p>
-              <form onSubmit={checkMatch}>
+              <form onSubmit={checkMatch} aria-busy={matching}>
                 <label htmlFor="job-description">Job description</label>
                 <textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} placeholder="We’re looking for an engineer fluent in TypeScript, React, Python…" maxLength={10000} rows={9} required />
-                <div className="form-footer"><span>{jobDescription.length.toLocaleString()} / 10,000</span><button disabled={matching}>{matching ? "Comparing…" : "Calculate match"}<ArrowIcon /></button></div>
+                <div className="form-footer"><span>{jobDescription.length.toLocaleString("en-US")} / 10,000</span><button type="submit" disabled={matching}>{matching ? "Comparing…" : "Calculate match"}<ArrowIcon /></button></div>
               </form>
               {match && <div className="match-result" aria-live="polite"><div><span>Match percentage</span><strong>{match.percentage}%</strong></div><div className="match-track"><i style={{ width: `${match.percentage}%` }} /></div><p>{match.formula}</p><div className="match-explanation"><strong>Match Explanation</strong><span>{match.explanation}</span></div><div className="match-tags">{match.matchedLanguages.length ? match.matchedLanguages.map((item) => <span key={item}>{item}</span>) : <small>No language matches found.</small>}</div>{match.unmatchedPortfolioLanguages.length > 0 && <div className="unmatched-languages"><small>Portfolio languages not mentioned in this JD</small><span>{match.unmatchedPortfolioLanguages.join(", ")}</span></div>}</div>}
               <small className="formula-note">Formula: matched unique portfolio languages ÷ all unique portfolio languages × 100.</small>
