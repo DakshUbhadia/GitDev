@@ -92,3 +92,9 @@ export function getSetting(key: string): string | null {
   const row = getDatabase().prepare("SELECT value FROM user_settings WHERE key = ?").get(key) as { value: string } | undefined;
   return row?.value ?? null;
 }
+
+export function closeDatabase() {
+  if (!database) return;
+  database.close();
+  database = null;
+}

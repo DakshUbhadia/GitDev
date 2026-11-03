@@ -30,6 +30,14 @@ export function validateUsername(value: unknown): string {
   return username;
 }
 
+export function formatCacheTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "unknown time";
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${hours}:${minutes} UTC`;
+}
+
 export function calculateStreak(days: ContributionDay[], today = new Date()): number {
   const counts = new Map(days.map((day) => [day.date, day.count]));
   const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));

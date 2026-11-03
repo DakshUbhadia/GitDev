@@ -53,3 +53,11 @@ npm test
 npm run lint
 npm run build
 ```
+
+The automated suite uses mocked GitHub responses and a temporary SQLite database, so it does not require a token or consume GitHub API quota. It covers:
+
+- GitHub GraphQL and REST response mapping.
+- SQLite snapshots, settings, TTL cache hits, and stale-cache fallback.
+- Profile aggregation, streaks, language statistics, and match scoring.
+- Profile and compatibility API routes, including input validation.
+- Server-rendered output for the profile header, contribution graph, repositories, and job compatibility form.

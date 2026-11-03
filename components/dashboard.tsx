@@ -3,9 +3,10 @@
 import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 import { ArrowIcon, ForkIcon, RefreshIcon, StarIcon } from "@/components/icons";
+import { formatCacheTime } from "@/lib/logic";
 import type { MatchResult, Portfolio } from "@/lib/types";
 
-type Props = { initialPortfolio: Portfolio | null; initialUsername: string; initialError: string };
+type Props = { initialPortfolio: Portfolio | null; initialUsername: string; initialError: string; currentYear: number };
 
 function number(value: number) {
   return new Intl.NumberFormat("en", { notation: value > 999 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value);
@@ -52,7 +53,7 @@ function LanguageChart({ portfolio }: { portfolio: Portfolio }) {
   );
 }
 
-export default function Dashboard({ initialPortfolio, initialUsername, initialError }: Props) {
+export default function Dashboard({ initialPortfolio, initialUsername, initialError, currentYear }: Props) {
   const [portfolio, setPortfolio] = useState(initialPortfolio);
   const [username, setUsername] = useState(initialUsername);
   const [usernameInput, setUsernameInput] = useState(initialUsername);
@@ -114,7 +115,7 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
             <div className="hero-actions">
               {match && <div className="match-badge"><span>Role fit</span><strong>{match.percentage}%</strong></div>}
               <button className="refresh-button" type="button" onClick={() => loadPortfolio(username, true)} disabled={loading}><RefreshIcon className={loading ? "spin" : ""} /> {loading ? "Syncing" : "Refresh data"}</button>
-              <span className="cache-note">{portfolio.stale ? "Stale cache — GitHub unavailable" : `Cached ${new Date(portfolio.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}</span>
+              <time className="cache-note" dateTime={portfolio.fetchedAt}>{portfolio.stale ? "Stale cache — GitHub unavailable" : `Cached ${formatCacheTime(portfolio.fetchedAt)}`}</time>
             </div>
           </header>
           <section className="overview-grid" aria-label="Profile overview">
@@ -152,7 +153,7 @@ export default function Dashboard({ initialPortfolio, initialUsername, initialEr
           </section>
         </>)}
       </div>
-      <footer><span>DEVFOLIO / {new Date().getFullYear()}</span><span>GitHub GraphQL · Next.js · SQLite</span></footer>
+      <footer><span>DEVFOLIO / {currentYear}</span><span>GitHub GraphQL · Next.js · SQLite</span></footer>
     </main>
   );
 }

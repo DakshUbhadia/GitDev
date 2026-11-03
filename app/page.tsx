@@ -13,5 +13,12 @@ export default async function Home() {
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unable to load the portfolio.";
   }
-  return <Dashboard initialPortfolio={initialPortfolio} initialUsername={username} initialError={initialError} />;
+  return (
+    <Dashboard
+      initialPortfolio={initialPortfolio}
+      initialUsername={username}
+      initialError={initialError}
+      currentYear={new Date().getUTCFullYear()}
+    />
+  );
 }

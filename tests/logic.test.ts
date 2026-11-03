@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { calculateMatch, calculateStreak, validateUsername } from "../lib/logic";
+import { calculateMatch, calculateStreak, formatCacheTime, validateJobDescription, validateUsername } from "../lib/logic";
 import type { ContributionDay, Repository } from "../lib/types";
 
 const repositories = ["Python", "JavaScript", "Java", "Go"].map((language, index): Repository => ({
@@ -17,6 +17,11 @@ describe("compatibility matching", () => {
   it("rejects blank and oversized input", () => {
     assert.throws(() => calculateMatch("   ", repositories), /required/);
     assert.throws(() => calculateMatch("x".repeat(10_001), repositories), /10,000/);
+    assert.throws(() => validateJobDescription(42), /must be a string/);
+  });
+  it("deduplicates languages and handles an empty portfolio", () => {
+    assert.equal(calculateMatch("PYTHON", [...repositories, repositories[0]]).percentage, 25);
+    assert.equal(calculateMatch("Python", []).percentage, 0);
   });
 });
 
@@ -31,5 +36,12 @@ describe("portfolio utilities", () => {
   it("validates GitHub usernames", () => {
     assert.equal(validateUsername(" octocat "), "octocat");
     assert.throws(() => validateUsername("bad--name"), /consecutive/);
+    assert.throws(() => validateUsername(""), /required/);
+    assert.throws(() => validateUsername("a".repeat(40)), /valid GitHub username/);
+    assert.throws(() => validateUsername(123), /must be a string/);
+  });
+  it("formats cache timestamps identically in every locale", () => {
+    assert.equal(formatCacheTime("2026-11-03T04:40:00.000Z"), "04:40 UTC");
+    assert.equal(formatCacheTime("invalid"), "unknown time");
   });
 });
